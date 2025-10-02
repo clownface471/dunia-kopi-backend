@@ -1,87 +1,111 @@
-const express = require("express");
-const cors = require("cors");
-const midtransClient = require("midtrans-client");
-const axios = require("axios");
+const express = require('express');
+const cors = require('cors');
+const axios = require('axios');
+require('dotenv').config();
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Ambil kunci rahasia dari Environment Variables
 const MIDTRANS_SERVER_KEY = process.env.MIDTRANS_SERVER_KEY;
-const MIDTRANS_CLIENT_KEY = process.env.MIDTRANS_CLIENT_KEY;
 const RAJAONGKIR_API_KEY = process.env.RAJAONGKIR_API_KEY;
+const RAJAONGKIR_BASE_URL = 'https://api.rajaongkir.com/starter';
+const DUNIA_KOPI_ORIGIN_CITY_ID = '22';
 
-// --- PERUBAHAN DI SINI: URL BARU RAJAONGKIR ---
-const RAJAONGKIR_BASE_URL = "https://api.rajaongkir.com/starter"; // Ganti jika platform baru memberikan URL yang berbeda
-
-// Inisialisasi Midtrans
-const snap = new midtransClient.Snap({
-  isProduction: false,
-  serverKey: MIDTRANS_SERVER_KEY,
-  clientKey: MIDTRANS_CLIENT_KEY,
+app.get('/', (req, res) => {
+  res.send('Dunia Kopi Backend is running!');
 });
 
-// Endpoint untuk Midtrans
-app.post("/create-transaction", async (req, res) => {
+app.post('/api/create-transaction', async (req, res) => {
   try {
-    const { orderId, amount, customerDetails } = req.body;
-    if (!orderId || !amount || !customerDetails) {
-      return res.status(400).json({ error: "Missing required fields" });
-    }
-    const parameter = {
-      transaction_details: { order_id: orderId, gross_amount: amount },
-      customer_details: customerDetails,
+    const { order_id, gross_amount, customer_details } = req.body;
+
+    const transactionDetails = {
+      transaction_details: {
+        order_id: order_id,
+        gross_amount: gross_amount,
+      },
+      customer_details: customer_details,
     };
-    const transaction = await snap.createTransaction(parameter);
-    res.status(200).json({ token: transaction.token });
-  } catch (e) {
-    console.error("Midtrans Error:", e.message);
-    res.status(500).json({ error: e.message });
-  }
-});
 
-// Endpoint untuk mendapatkan semua provinsi
-app.get("/api/provinces", async (req, res) => {
-  try {
-    console.log("Fetching provinces from new RajaOngkir API...");
-    const response = await axios.get(`${RAJAONGKIR_BASE_URL}/province`, {
-      headers: { key: RAJAONGKIR_API_KEY },
-    });
-    console.log("Successfully fetched provinces.");
-    res.status(200).json(response.data.rajaongkir.results);
+    const response = await axios.post(
+      'https://app.sandbox.midtrans.com/snap/v1/transactions',
+      transactionDetails,
+      {
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+          Authorization:
+            'Basic ' +
+            Buffer.from(MIDTRANS_SERVER_KEY).toString('base64'),
+        },
+      }
+    );
+
+    res.json(response.data);
   } catch (error) {
-    console.error("RajaOngkir Provinces Error:", error.response ? error.response.data : error.message);
-    res.status(500).json({ 
-      message: "Gagal mengambil data provinsi.",
-      detail: error.response ? error.response.data : error.message,
-    });
+    console.error('Error creating Midtrans transaction:', error.response ? error.response.data : error.message);
+    res.status(500).json({ error: 'Failed to create transaction' });
   }
 });
 
-// Endpoint untuk mendapatkan kota berdasarkan ID provinsi
-app.get("/api/cities/:provinceId", async (req, res) => {
-  try {
-    const { provinceId } = req.params;
-    console.log(`Fetching cities for province ID: ${provinceId}...`);
-    const response = await axios.get(`${RAJAONGKIR_BASE_URL}/city?province=${provinceId}`, {
-      headers: { key: RAJAONGKIR_API_KEY },
-    });
-    console.log("Successfully fetched cities.");
-    res.status(200).json(response.data.rajaongkir.results);
-  } catch (error) {
-    console.error("RajaOngkir Cities Error:", error.response ? error.response.data : error.message);
-    res.status(500).json({ 
-      message: "Gagal mengambil data kota.",
-      detail: error.response ? error.response.data : error.message,
-     });
-  }
+app.get('/api/provinces', async (req, res) => {
+    try {
+        const response = await axios.get(`${RAJAONGKIR_BASE_URL}/province`, {
+            headers: { 'key': RAJAONGKIR_API_KEY }
+        });
+        res.json(response.data);
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
 });
 
-const PORT = process.env.PORT || 3000;
+app.get('/api/cities/:provinceId', async (req, res) => {
+    try {
+        const { provinceId } = req.params;
+        const response = await axios.get(`${RAJAONGKIR_BASE_URL}/city?province=${provinceId}`, {
+            headers: { 'key': RAJAONGKIR_API_KEY }
+        });
+        res.json(response.data);
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+});
+
+app.post('/api/shipping-cost', async (req, res) => {
+    try {
+        const { destination, weight, courier } = req.body;
+
+        if (!destination || !weight || !courier) {
+            return res.status(400).json({ message: 'Bad Request: destination, weight, and courier are required.' });
+        }
+
+        const response = await axios.post(
+            `${RAJAONGKIR_BASE_URL}/cost`,
+            {
+                origin: DUNIA_KOPI_ORIGIN_CITY_ID,
+                destination: destination,
+                weight: weight,
+                courier: courier,
+            },
+            {
+                headers: {
+                    'key': RAJAONGKIR_API_KEY,
+                    'content-type': 'application/x-www-form-urlencoded'
+                }
+            }
+        );
+        res.json(response.data);
+    } catch (error) {
+        console.error('RajaOngkir Error:', error.response ? error.response.data : error.message);
+        res.status(500).json({ message: error.message });
+    }
+});
+
+
+const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
 });
 
 module.exports = app;
-
