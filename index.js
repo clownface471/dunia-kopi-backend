@@ -12,6 +12,9 @@ const MIDTRANS_SERVER_KEY = process.env.MIDTRANS_SERVER_KEY;
 const MIDTRANS_CLIENT_KEY = process.env.MIDTRANS_CLIENT_KEY;
 const RAJAONGKIR_API_KEY = process.env.RAJAONGKIR_API_KEY;
 
+// --- PERUBAHAN DI SINI: URL BARU RAJAONGKIR ---
+const RAJAONGKIR_BASE_URL = "https://api.rajaongkir.com/starter"; // Ganti jika platform baru memberikan URL yang berbeda
+
 // Inisialisasi Midtrans
 const snap = new midtransClient.Snap({
   isProduction: false,
@@ -41,14 +44,13 @@ app.post("/create-transaction", async (req, res) => {
 // Endpoint untuk mendapatkan semua provinsi
 app.get("/api/provinces", async (req, res) => {
   try {
-    console.log("Fetching provinces from RajaOngkir...");
-    const response = await axios.get("https://api.rajaongkir.com/starter/province", {
+    console.log("Fetching provinces from new RajaOngkir API...");
+    const response = await axios.get(`${RAJAONGKIR_BASE_URL}/province`, {
       headers: { key: RAJAONGKIR_API_KEY },
     });
     console.log("Successfully fetched provinces.");
     res.status(200).json(response.data.rajaongkir.results);
   } catch (error) {
-    // --- PENINGKATAN LOGGING DI SINI ---
     console.error("RajaOngkir Provinces Error:", error.response ? error.response.data : error.message);
     res.status(500).json({ 
       message: "Gagal mengambil data provinsi.",
@@ -62,13 +64,12 @@ app.get("/api/cities/:provinceId", async (req, res) => {
   try {
     const { provinceId } = req.params;
     console.log(`Fetching cities for province ID: ${provinceId}...`);
-    const response = await axios.get(`https://api.rajaongkir.com/starter/city?province=${provinceId}`, {
+    const response = await axios.get(`${RAJAONGKIR_BASE_URL}/city?province=${provinceId}`, {
       headers: { key: RAJAONGKIR_API_KEY },
     });
     console.log("Successfully fetched cities.");
     res.status(200).json(response.data.rajaongkir.results);
   } catch (error) {
-    // --- PENINGKATAN LOGGING DI SINI ---
     console.error("RajaOngkir Cities Error:", error.response ? error.response.data : error.message);
     res.status(500).json({ 
       message: "Gagal mengambil data kota.",
