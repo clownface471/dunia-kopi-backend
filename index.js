@@ -66,6 +66,67 @@ app.get('/api/cities/:provinceId', async (req, res) => {
     }
 });
 
+app.post('/api/cost', async (req, res) => {
+    try {
+        const { origin, destination, weight, courier } = req.body;
+
+        console.log('Calculating cost with DUMMY DATA for:', req.body);
+        
+        // Validasi input sederhana
+        if (!origin || !destination || !weight || !courier) {
+            return res.status(400).json({ message: "Missing required parameters for cost calculation." });
+        }
+
+        // --- INI ADALAH DATA PALSU (DUMMY DATA) ---
+        const dummyResponse = [
+            {
+                "code": "jne",
+                "name": "Jalur Nugraha Ekakurir (JNE)",
+                "costs": [
+                    {
+                        "service": "OKE",
+                        "description": "Ongkos Kirim Ekonomis",
+                        "cost": [ { "value": 18000, "etd": "3-5", "note": "" } ]
+                    },
+                    {
+                        "service": "REG",
+                        "description": "Layanan Reguler",
+                        "cost": [ { "value": 22000, "etd": "2-3", "note": "" } ]
+                    }
+                ]
+            },
+            {
+                "code": "tiki",
+                "name": "Citra Van Titipan Kilat (TIKI)",
+                "costs": [
+                     {
+                        "service": "REG",
+                        "description": "Layanan Reguler",
+                        "cost": [ { "value": 21000, "etd": "2-3", "note": "" } ]
+                    },
+                    {
+                        "service": "ONS",
+                        "description": "Over Night Service",
+                        "cost": [ { "value": 35000, "etd": "1", "note": "" } ]
+                    }
+                ]
+            }
+        ];
+
+        res.json({
+            rajaongkir: {
+                query: req.body,
+                status: { code: 200, description: "OK" },
+                results: dummyResponse
+            }
+        });
+
+    } catch (error) {
+        console.error("Error in dummy cost endpoint:", error);
+        res.status(500).json({ message: "Internal server error" });
+    }
+});
+
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
     console.log(`Server is running on port ${PORT}`);
