@@ -1,15 +1,17 @@
+const https = require('https');
+
 module.exports = async (req, res) => {
   // Set CORS headers
+  res.setHeader('Access-Control-Allow-Credentials', true);
   res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Methods', 'POST,OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
-  // Handle preflight request
   if (req.method === 'OPTIONS') {
-    return res.status(200).end();
+    res.status(200).end();
+    return;
   }
 
-  // Only allow POST requests
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
@@ -24,85 +26,105 @@ module.exports = async (req, res) => {
       });
     }
 
-    // Static origin: Jakarta Selatan
-    const ORIGIN_CITY_ID = '151';
+    const RAJAONGKIR_API_KEY = process.env.RAJAONGKIR_API_KEY;
     
-    // Default couriers if not specified
-    const couriersToCheck = courier || 'jne,tiki,pos';
-
-    // Call RajaOngkir Cost API
-    const rajaOngkirUrl = 'https://pro.komerce.id/api/cost';
-    const apiKey = process.env.RAJAONGKIR_API_KEY;
-
-    if (!apiKey) {
-      return res.status(500).json({ error: 'RajaOngkir API key not configured' });
+    if (!RAJAONGKIR_API_KEY) {
+      return res.status(500).json({ error: 'API key not configured' });
     }
 
-    const response = await fetch(rajaOngkirUrl, {
+    // Static origin: Jakarta Selatan (City ID 151)
+    const ORIGIN_CITY_ID = '151';
+    
+    // Default to JNE, TIKI, POS if courier not specified
+    const couriersToCheck = courier || 'jne:tiki:pos';
+
+    // Prepare POST data for RajaOngkir
+    const postData = JSON.stringify({
+      origin: ORIGIN_CITY_ID,
+      destination: destination.toString(),
+      weight: parseInt(weight),
+      courier: couriersToCheck
+    });
+
+    const options = {
+      hostname: 'api.komerce.id',
+      path: '/v1/cost',
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': apiKey,
-      },
-      body: JSON.stringify({
-        origin: ORIGIN_CITY_ID,
-        destination: destination.toString(),
-        weight: parseInt(weight),
-        courier: couriersToCheck,
-      }),
+        'key': RAJAONGKIR_API_KEY,
+        'Content-Length': Buffer.byteLength(postData)
+      }
+    };
+
+    // Make the request to RajaOngkir
+    const rajaOngkirRequest = https.request(options, (apiRes) => {
+      let data = '';
+
+      apiRes.on('data', (chunk) => {
+        data += chunk;
+      });
+
+      apiRes.on('end', () => {
+        try {
+          const parsedData = JSON.parse(data);
+          
+          if (parsedData.rajaongkir && parsedData.rajaongkir.results) {
+            // Transform the data to a cleaner format
+            const results = parsedData.rajaongkir.results;
+            const formattedResults = results.map(courierData => ({
+              code: courierData.code,
+              name: courierData.name,
+              services: courierData.costs.map(cost => ({
+                service: cost.service,
+                description: cost.description,
+                cost: cost.cost[0].value,
+                etd: cost.cost[0].etd,
+                note: cost.cost[0].note || '',
+              })),
+            }));
+
+            res.status(200).json({
+              success: true,
+              origin: {
+                city_id: ORIGIN_CITY_ID,
+                city_name: 'Jakarta Selatan',
+              },
+              destination: {
+                city_id: destination.toString(),
+              },
+              weight: parseInt(weight),
+              results: formattedResults,
+            });
+          } else {
+            res.status(500).json({ 
+              error: 'Invalid response from RajaOngkir API',
+              details: parsedData 
+            });
+          }
+        } catch (error) {
+          res.status(500).json({ 
+            error: 'Failed to parse RajaOngkir response',
+            details: error.message 
+          });
+        }
+      });
     });
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('RajaOngkir API Error:', errorText);
-      return res.status(response.status).json({ 
+    rajaOngkirRequest.on('error', (error) => {
+      res.status(500).json({ 
         error: 'Failed to fetch shipping cost from RajaOngkir',
-        details: errorText 
+        details: error.message 
       });
-    }
-
-    const data = await response.json();
-
-    // Check for API-level errors
-    if (data.rajaongkir?.status?.code !== 200) {
-      return res.status(400).json({ 
-        error: 'RajaOngkir API returned an error',
-        details: data.rajaongkir?.status?.description 
-      });
-    }
-
-    // Extract and format the results
-    const results = data.rajaongkir?.results || [];
-    
-    // Transform the data to a cleaner format
-    const formattedResults = results.map(courierData => ({
-      code: courierData.code,
-      name: courierData.name,
-      services: courierData.costs.map(cost => ({
-        service: cost.service,
-        description: cost.description,
-        cost: cost.cost[0].value,
-        etd: cost.cost[0].etd,
-        note: cost.cost[0].note || '',
-      })),
-    }));
-
-    return res.status(200).json({
-      success: true,
-      origin: {
-        city_id: ORIGIN_CITY_ID,
-        city_name: 'Jakarta Selatan',
-      },
-      destination: {
-        city_id: destination.toString(),
-      },
-      weight: parseInt(weight),
-      results: formattedResults,
     });
+
+    // Send the POST data
+    rajaOngkirRequest.write(postData);
+    rajaOngkirRequest.end();
 
   } catch (error) {
     console.error('Shipping cost calculation error:', error);
-    return res.status(500).json({ 
+    res.status(500).json({ 
       error: 'Internal server error',
       details: error.message 
     });
