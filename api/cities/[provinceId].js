@@ -1,4 +1,4 @@
-const https = require('https');
+const axios = require('axios');
 
 module.exports = async (req, res) => {
   // Set CORS headers
@@ -16,48 +16,57 @@ module.exports = async (req, res) => {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  const { provinceId } = req.query;
+  try {
+    const { provinceId } = req.query;
 
-  if (!provinceId) {
-    return res.status(400).json({ error: 'Province ID is required' });
-  }
+    if (!provinceId) {
+      return res.status(400).json({ error: 'Province ID is required' });
+    }
 
-  const RAJAONGKIR_API_KEY = process.env.RAJAONGKIR_API_KEY;
-  
-  if (!RAJAONGKIR_API_KEY) {
-    return res.status(500).json({ error: 'API key not configured' });
-  }
+    const RAJAONGKIR_API_KEY = process.env.RAJAONGKIR_API_KEY;
+    
+    if (!RAJAONGKIR_API_KEY) {
+      console.error('RAJAONGKIR_API_KEY not found in environment variables');
+      return res.status(500).json({ error: 'API key not configured' });
+    }
 
-  const options = {
-    hostname: 'api.komerce.id',
-    path: `/v1/city?province=${provinceId}`,
-    method: 'GET',
-    headers: {
-      'key': RAJAONGKIR_API_KEY,
-    },
-  };
+    console.log(`Fetching cities for province ${provinceId} from Komerce API...`);
 
-  https.get(options, (apiRes) => {
-    let data = '';
-
-    apiRes.on('data', (chunk) => {
-      data += chunk;
+    // FIXED: Use the NEW Komerce endpoint
+    const response = await axios.get(`https://api.komerce.id/v1/city?province=${provinceId}`, {
+      headers: {
+        'key': RAJAONGKIR_API_KEY,
+      },
     });
 
-    apiRes.on('end', () => {
-      try {
-        const parsedData = JSON.parse(data);
-        
-        if (parsedData.rajaongkir && parsedData.rajaongkir.results) {
-          res.status(200).json(parsedData.rajaongkir.results);
-        } else {
-          res.status(500).json({ error: 'Invalid response from RajaOngkir API' });
-        }
-      } catch (error) {
-        res.status(500).json({ error: 'Failed to parse RajaOngkir response' });
-      }
-    });
-  }).on('error', (error) => {
-    res.status(500).json({ error: 'Failed to fetch cities', details: error.message });
-  });
+    console.log('Komerce Response Status:', response.status);
+
+    if (response.data.rajaongkir && response.data.rajaongkir.results) {
+      console.log('Cities fetched successfully:', response.data.rajaongkir.results.length);
+      res.status(200).json(response.data.rajaongkir.results);
+    } else if (response.data.rajaongkir && response.data.rajaongkir.status) {
+      console.error('Komerce API Error:', response.data.rajaongkir.status);
+      res.status(500).json({ 
+        error: 'Komerce API error', 
+        details: response.data.rajaongkir.status.description 
+      });
+    } else {
+      console.error('Unexpected response structure:', response.data);
+      res.status(500).json({ error: 'Invalid response from Komerce API' });
+    }
+  } catch (error) {
+    console.error('Error fetching cities:', error.message);
+    if (error.response) {
+      console.error('Error Response:', error.response.data);
+      res.status(error.response.status || 500).json({ 
+        error: 'Failed to fetch cities from Komerce',
+        details: error.response.data 
+      });
+    } else {
+      res.status(500).json({ 
+        error: 'Failed to fetch cities', 
+        details: error.message 
+      });
+    }
+  }
 };

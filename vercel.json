@@ -1,8 +1,5 @@
 {
   "version": 2,
-  "env": {
-    "RAJAONGKIR_API_KEY": "@rajaongkir_api_key"
-  },
   "builds": [
     {
       "src": "api/**/*.js",
