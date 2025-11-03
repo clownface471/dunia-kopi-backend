@@ -1,21 +1,18 @@
 const axios = require('axios');
 
 module.exports = async (req, res) => {
-  // --- PERBAIKAN CORS DIMULAI ---
-  // Menambahkan header CORS untuk mengizinkan Flutter Web
+  // --- Perbaikan CORS ---
   res.setHeader('Access-Control-Allow-Credentials', true);
-  res.setHeader('Access-Control-Allow-Origin', '*'); // Mengizinkan semua domain (ganti dengan domain web Anda di produksi)
+  res.setHeader('Access-Control-Allow-Origin', '*'); 
   res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
-  // Menangani request pre-flight 'OPTIONS' dari browser
   if (req.method === 'OPTIONS') {
     res.status(200).end();
     return;
   }
-  // --- PERBAIKAN CORS SELESAI ---
+  // --- Akhir Perbaikan CORS ---
 
-  // Menangani request GET
   if (req.method !== 'GET') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
@@ -24,13 +21,13 @@ module.exports = async (req, res) => {
     const RAJAONGKIR_API_KEY = process.env.RAJAONGKIR_API_KEY;
     
     if (!RAJAONGKIR_API_KEY) {
-      console.error('RAJAONGKIR_API_KEY not found in environment variables');
+      console.error('RAJAONGKIR_API_KEY not found');
       return res.status(500).json({ error: 'API key not configured' });
     }
 
     console.log('Fetching all provinces from NEW Komerce API...');
 
-    // Menggunakan URL Komerce yang benar yang kita temukan
+    // --- Perbaikan URL Komerce ---
     const url = 'https://rajaongkir.komerce.id/api/v1/destination/province';
 
     const response = await axios.get(url, {
@@ -41,7 +38,7 @@ module.exports = async (req, res) => {
 
     console.log('Komerce Response Status:', response.status);
 
-    // Menggunakan struktur data Komerce yang benar ('response.data.data')
+    // --- Perbaikan Struktur Data ---
     const provinces = response.data.data;
 
     if (provinces && Array.isArray(provinces)) {
