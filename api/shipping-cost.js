@@ -1,4 +1,4 @@
-const https = require('https');
+const axios = require('axios'); // Gunakan Axios agar konsisten dengan file lain
 
 module.exports = async (req, res) => {
   // Set CORS headers
@@ -19,7 +19,6 @@ module.exports = async (req, res) => {
   try {
     const { destination, weight, courier } = req.body;
 
-    // Validation
     if (!destination || !weight) {
       return res.status(400).json({ 
         error: 'Missing required fields: destination and weight are required' 
@@ -32,101 +31,76 @@ module.exports = async (req, res) => {
       return res.status(500).json({ error: 'API key not configured' });
     }
 
-    // Static origin: Jakarta Selatan (City ID 151)
-    const ORIGIN_CITY_ID = '151';
-    
-    // Default to JNE, TIKI, POS if courier not specified
-    const couriersToCheck = courier || 'jne:tiki:pos';
+    // --- PERBAIKAN 1: Asal Statis ---
+    const ORIGIN_CITY_ID = '151'; // Jakarta Selatan
+    const couriersToCheck = courier || 'jne:tiki:pos'; // Kurir default
 
-    // Prepare POST data for RajaOngkir
-    const postData = JSON.stringify({
+    // --- PERBAIKAN 2: URL API Komerce BARU ---
+    const url = 'https://rajaongkir.komerce.id/api/v1/cost';
+    
+    const postData = {
       origin: ORIGIN_CITY_ID,
       destination: destination.toString(),
       weight: parseInt(weight),
       courier: couriersToCheck
-    });
-
-    const options = {
-      hostname: 'api.komerce.id',
-      path: '/v1/cost',
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'key': RAJAONGKIR_API_KEY,
-        'Content-Length': Buffer.byteLength(postData)
-      }
     };
 
-    // Make the request to RajaOngkir
-    const rajaOngkirRequest = https.request(options, (apiRes) => {
-      let data = '';
+    console.log('Fetching shipping cost from Komerce:', url);
 
-      apiRes.on('data', (chunk) => {
-        data += chunk;
-      });
-
-      apiRes.on('end', () => {
-        try {
-          const parsedData = JSON.parse(data);
-          
-          if (parsedData.rajaongkir && parsedData.rajaongkir.results) {
-            // Transform the data to a cleaner format
-            const results = parsedData.rajaongkir.results;
-            const formattedResults = results.map(courierData => ({
-              code: courierData.code,
-              name: courierData.name,
-              services: courierData.costs.map(cost => ({
-                service: cost.service,
-                description: cost.description,
-                cost: cost.cost[0].value,
-                etd: cost.cost[0].etd,
-                note: cost.cost[0].note || '',
-              })),
-            }));
-
-            res.status(200).json({
-              success: true,
-              origin: {
-                city_id: ORIGIN_CITY_ID,
-                city_name: 'Jakarta Selatan',
-              },
-              destination: {
-                city_id: destination.toString(),
-              },
-              weight: parseInt(weight),
-              results: formattedResults,
-            });
-          } else {
-            res.status(500).json({ 
-              error: 'Invalid response from RajaOngkir API',
-              details: parsedData 
-            });
-          }
-        } catch (error) {
-          res.status(500).json({ 
-            error: 'Failed to parse RajaOngkir response',
-            details: error.message 
-          });
-        }
-      });
+    const response = await axios.post(url, postData, {
+      headers: {
+        'key': RAJAONGKIR_API_KEY,
+        'Content-Type': 'application/json'
+      }
     });
 
-    rajaOngkirRequest.on('error', (error) => {
-      res.status(500).json({ 
-        error: 'Failed to fetch shipping cost from RajaOngkir',
-        details: error.message 
-      });
-    });
+    console.log('Komerce Cost Response Status:', response.status);
 
-    // Send the POST data
-    rajaOngkirRequest.write(postData);
-    rajaOngkirRequest.end();
+    // --- PERBAIKAN 3: Struktur Respons BARU ---
+    // API lama menggunakan 'rajaongkir.results', API baru menggunakan 'data'
+    const results = response.data.data; 
+
+    if (results && Array.isArray(results)) {
+      // (Asumsi) Strukturnya mungkin sedikit berubah.
+      // Kita coba transformasikan berdasarkan data lama Anda.
+      const formattedResults = results.map(courierData => ({
+        code: courierData.code,
+        name: courierData.name,
+        services: courierData.costs.map(cost => ({
+          service: cost.service,
+          description: cost.description,
+          cost: cost.cost[0].value,
+          etd: cost.cost[0].etd,
+          note: cost.cost[0].note || '',
+        })),
+      }));
+
+      res.status(200).json({
+        success: true,
+        origin: { city_id: ORIGIN_CITY_ID, city_name: 'Jakarta Selatan' },
+        destination: { city_id: destination.toString() },
+        weight: parseInt(weight),
+        results: formattedResults,
+      });
+
+    } else {
+      console.error('Unexpected cost response structure:', response.data);
+      res.status(500).json({ error: 'Invalid cost response structure from Komerce API' });
+    }
 
   } catch (error) {
-    console.error('Shipping cost calculation error:', error);
-    res.status(500).json({ 
-      error: 'Internal server error',
-      details: error.message 
-    });
+    console.error('Shipping cost calculation error:', error.message);
+    if (error.response) {
+      console.error('Error Response:', error.response.data);
+      res.status(error.response.status || 500).json({ 
+        error: 'Failed to fetch shipping cost from Komerce',
+        details: error.response.data 
+      });
+    } else {
+      res.status(500).json({ 
+        error: 'Internal server error', 
+        details: error.message 
+      });
+    }
   }
 };
