@@ -1,17 +1,21 @@
 const axios = require('axios');
 
 module.exports = async (req, res) => {
-  // Set CORS headers
+  // --- PERBAIKAN CORS DIMULAI ---
+  // Menambahkan header CORS untuk mengizinkan Flutter Web
   res.setHeader('Access-Control-Allow-Credentials', true);
-  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Origin', '*'); // Mengizinkan semua domain (ganti dengan domain web Anda di produksi)
   res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
+  // Menangani request pre-flight 'OPTIONS' dari browser
   if (req.method === 'OPTIONS') {
     res.status(200).end();
     return;
   }
+  // --- PERBAIKAN CORS SELESAI ---
 
+  // Menangani request GET
   if (req.method !== 'GET') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
@@ -24,10 +28,12 @@ module.exports = async (req, res) => {
       return res.status(500).json({ error: 'API key not configured' });
     }
 
-    console.log('Fetching provinces from Komerce API...');
+    console.log('Fetching all provinces from NEW Komerce API...');
 
-    // FIXED: Use the NEW Komerce endpoint
-    const response = await axios.get('https://rajaongkir.komerce.id/api/v1/destination/province', {
+    // Menggunakan URL Komerce yang benar yang kita temukan
+    const url = 'https://rajaongkir.komerce.id/api/v1/destination/province';
+
+    const response = await axios.get(url, {
       headers: {
         'key': RAJAONGKIR_API_KEY,
       },
@@ -35,18 +41,15 @@ module.exports = async (req, res) => {
 
     console.log('Komerce Response Status:', response.status);
 
-    if (response.data.rajaongkir && response.data.rajaongkir.results) {
-      console.log('Provinces fetched successfully:', response.data.rajaongkir.results.length);
-      res.status(200).json(response.data.rajaongkir.results);
-    } else if (response.data.rajaongkir && response.data.rajaongkir.status) {
-      console.error('Komerce API Error:', response.data.rajaongkir.status);
-      res.status(500).json({ 
-        error: 'Komerce API error', 
-        details: response.data.rajaongkir.status.description 
-      });
+    // Menggunakan struktur data Komerce yang benar ('response.data.data')
+    const provinces = response.data.data;
+
+    if (provinces && Array.isArray(provinces)) {
+      console.log('Provinces fetched successfully:', provinces.length);
+      res.status(200).json(provinces);
     } else {
       console.error('Unexpected response structure:', response.data);
-      res.status(500).json({ error: 'Invalid response from Komerce API' });
+      res.status(500).json({ error: 'Invalid response structure from Komerce API' });
     }
   } catch (error) {
     console.error('Error fetching provinces:', error.message);
