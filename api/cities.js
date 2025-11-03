@@ -17,10 +17,11 @@ module.exports = async (req, res) => {
   }
 
   try {
-    const { provinceId } = req.query;
+    // Get provinceId from query parameter instead of path
+    const provinceId = req.query.province || req.query.provinceId;
 
     if (!provinceId) {
-      return res.status(400).json({ error: 'Province ID is required' });
+      return res.status(400).json({ error: 'Province ID is required as query parameter (?province=5)' });
     }
 
     const RAJAONGKIR_API_KEY = process.env.RAJAONGKIR_API_KEY;
@@ -30,10 +31,9 @@ module.exports = async (req, res) => {
       return res.status(500).json({ error: 'API key not configured' });
     }
 
-    console.log(`Fetching cities for province ${provinceId} from NEW Komerce API...`);
+    console.log(`Fetching cities for province ${provinceId} from Komerce API...`);
 
-    // --- PERBAIKAN 1: Menggunakan URL API yang Benar ---
-    // Kita menyimpulkan URL kota berdasarkan URL provinsi yang berhasil Anda tes.
+    // Use Komerce API URL
     const url = `https://rajaongkir.komerce.id/api/v1/destination/city?province=${provinceId}`;
 
     const response = await axios.get(url, {
@@ -42,18 +42,16 @@ module.exports = async (req, res) => {
       },
     });
 
-    console.log('Komerce Response Status:', response.status);
+    console.log('Komerce Cities Response Status:', response.status);
 
-    // --- PERBAIKAN 2: Menggunakan Struktur Data yang Benar ---
-    // Berdasarkan tes provinsi Anda, data ada di 'response.data.data'
+    // Extract data from response
     const cities = response.data.data;
 
     if (cities && Array.isArray(cities)) {
-      console.log('Cities fetched successfully:', cities.length);
-      // Kirim kembali array 'cities' secara langsung
+      console.log(`✅ Cities fetched successfully: ${cities.length} cities found`);
+      // Return array directly
       res.status(200).json(cities);
     } else {
-      // Ini terjadi jika API merespons 200 OK tapi tidak ada 'data'
       console.error('Unexpected response structure:', response.data);
       res.status(500).json({ error: 'Invalid response structure from Komerce API' });
     }

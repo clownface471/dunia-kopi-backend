@@ -1,0 +1,27 @@
+{
+  "version": 2,
+  "builds": [
+    {
+      "src": "api/**/*.js",
+      "use": "@vercel/node"
+    }
+  ],
+  "routes": [
+    {
+      "src": "/api/provinces",
+      "dest": "/api/provinces.js"
+    },
+    {
+      "src": "/api/cities/(.*)",
+      "dest": "/api/cities/$1.js"
+    },
+    {
+      "src": "/api/shipping-cost",
+      "dest": "/api/shipping-cost.js"
+    },
+    {
+      "src": "/api/create-transaction",
+      "dest": "/api/create-transaction.js"
+    }
+  ]
+}
