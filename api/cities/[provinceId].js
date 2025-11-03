@@ -30,10 +30,13 @@ module.exports = async (req, res) => {
       return res.status(500).json({ error: 'API key not configured' });
     }
 
-    console.log(`Fetching cities for province ${provinceId} from Komerce API...`);
+    console.log(`Fetching cities for province ${provinceId} from NEW Komerce API...`);
 
-    // FIXED: Use the NEW Komerce endpoint
-    const response = await axios.get(`https://api.komerce.id/v1/city?province=${provinceId}`, {
+    // --- PERBAIKAN 1: Menggunakan URL API yang Benar ---
+    // Kita menyimpulkan URL kota berdasarkan URL provinsi yang berhasil Anda tes.
+    const url = `https://rajaongkir.komerce.id/api/v1/destination/city?province=${provinceId}`;
+
+    const response = await axios.get(url, {
       headers: {
         'key': RAJAONGKIR_API_KEY,
       },
@@ -41,18 +44,18 @@ module.exports = async (req, res) => {
 
     console.log('Komerce Response Status:', response.status);
 
-    if (response.data.rajaongkir && response.data.rajaongkir.results) {
-      console.log('Cities fetched successfully:', response.data.rajaongkir.results.length);
-      res.status(200).json(response.data.rajaongkir.results);
-    } else if (response.data.rajaongkir && response.data.rajaongkir.status) {
-      console.error('Komerce API Error:', response.data.rajaongkir.status);
-      res.status(500).json({ 
-        error: 'Komerce API error', 
-        details: response.data.rajaongkir.status.description 
-      });
+    // --- PERBAIKAN 2: Menggunakan Struktur Data yang Benar ---
+    // Berdasarkan tes provinsi Anda, data ada di 'response.data.data'
+    const cities = response.data.data;
+
+    if (cities && Array.isArray(cities)) {
+      console.log('Cities fetched successfully:', cities.length);
+      // Kirim kembali array 'cities' secara langsung
+      res.status(200).json(cities);
     } else {
+      // Ini terjadi jika API merespons 200 OK tapi tidak ada 'data'
       console.error('Unexpected response structure:', response.data);
-      res.status(500).json({ error: 'Invalid response from Komerce API' });
+      res.status(500).json({ error: 'Invalid response structure from Komerce API' });
     }
   } catch (error) {
     console.error('Error fetching cities:', error.message);

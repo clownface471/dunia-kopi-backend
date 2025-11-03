@@ -27,7 +27,7 @@ module.exports = async (req, res) => {
     console.log('Fetching provinces from Komerce API...');
 
     // FIXED: Use the NEW Komerce endpoint
-    const response = await axios.get('https://api.komerce.id/v1/province', {
+    const response = await axios.get('https://rajaongkir.komerce.id/api/v1/destination/province', {
       headers: {
         'key': RAJAONGKIR_API_KEY,
       },
